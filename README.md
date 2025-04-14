@@ -36,7 +36,7 @@ This script automates the process of mirroring Mailcow's configuration and criti
 
 1.  **Download/Clone Script:** Get the `mailcow-sync.sh` script onto your **primary** Mailcow server.
     ```bash
-    git clone [https://github.com/hostbor/mailcowsync.git](https://github.com/hostbor/mailcowsync.git)
+    git clone https://github.com/hostbor/mailcowsync.git
     cd mailcowsync
     # Consider moving mailcow-sync.sh to /usr/local/sbin/ or /root/
     ```
@@ -54,11 +54,16 @@ Run the script manually (usually as root or with `sudo`):
 
 ```bash
 sudo /path/to/your/mailcow-sync.sh
+```
 
-Check the log file (/var/log/sync_mailcow.log by default) for progress and errors.
-Automated Execution (Cron)
-Set up a cron job (sudo crontab -e) to run the script automatically on your desired schedule (e.g., daily, twice daily).
+Check the log file (`/var/log/sync_mailcow.log` by default) for progress and errors.
+
+### Automated Execution (Cron)
+
+Set up a cron job (`sudo crontab -e`) to run the script automatically on your desired schedule (e.g., daily, twice daily).
+
 ➡️ See the full blog post for detailed cron job examples and scheduling recommendations.
-License
-This project is licensed under the MIT License - see the LICENSE file for details
 
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details

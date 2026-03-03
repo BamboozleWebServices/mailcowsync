@@ -10,60 +10,108 @@ This script automates the process of mirroring Mailcow's configuration and criti
 
 ---
 
-## Features
+## Bamboozle Web Services Notes
 
-* **Automated Server Mirroring:** Synchronizes the primary Mailcow server to a secondary server.
-* **Configuration Sync:** Mirrors the Mailcow configuration directory (default: `/opt/mailcow-dockerized`).
-* **Data Volume Sync:** Mirrors essential Docker volumes (default: `/var/lib/docker/volumes`), ensuring mail data, databases, etc., are replicated.
-* **"Zero-Prep" Backup Server:** Automatically installs Docker and the correct Docker Compose version on the backup server during the first run if they are not present (Tested on Ubuntu/Debian).
-* **Efficient Transfers:** Uses `rsync` with optimized flags (`-aHhP --numeric-ids --delete`) to transfer only changed data and preserve permissions/ownership accurately.
-* **Configurable Exclusions:** Allows specific Docker volumes (like `rspamd-vol-1` by default) to be excluded, useful for architecture differences or ignoring unrelated containers.
-* **Robust Error Handling:** Implements `trap` to catch errors, logs detailed messages (including the failed command), and stops the script immediately upon failure.
-* **Notifications:** Optional error notifications via Pushover (easily adaptable for other services like Email or Telegram by modifying the script function).
-* **Automation Ready:** Designed to be run automatically via Cron for scheduled synchronization.
+This fork is maintained by [Bamboozle Web Services](https://bamboozle.me) for use across our hosting infrastructure.
 
-## Prerequisites
+### MailChannels Integration
 
-1.  **Two Servers:** A primary server running Mailcow and a secondary server intended as the backup/standby.
-2.  **Operating System:** Tested primarily on recent versions of Ubuntu and Debian on both servers.
-3.  **SSH Access:** Passwordless SSH key authentication must be configured from the primary server (where this script runs) to the backup server. The user specified (`TARGET_USER`, typically `root`) must be able to log in via SSH key.
-4.  **Root/Sudo Privileges:** The script generally requires root privileges on the primary server to read all files and manage cron jobs (`sudo crontab`). The specified `TARGET_USER` on the backup server needs privileges to install packages (Docker/Compose), manage services (`systemctl`), and write files/directories via `rsync`.
-5.  **Required Tools:**
-    * `rsync`, `curl`, `ssh` client installed on the primary server. (`sudo apt update && sudo apt install -y rsync curl ssh`).
-    * `rsync` installed on the backup server (`sudo apt update && sudo apt install -y rsync`).
+Our Mailcow deployments use **MailChannels** as a front-end relay for both **inbound and outbound** mail routing. This has an important implication for failover:
 
-## Quick Setup Overview
-
-1.  **Download/Clone Script:** Get the `mailcow-sync.sh` script onto your **primary** Mailcow server.
-    ```bash
-    git clone https://github.com/hostbor/mailcowsync.git
-    cd mailcowsync
-    # Consider moving mailcow-sync.sh to /usr/local/sbin/ or /root/
-    ```
-2.  **Configure Script:** Edit `mailcow-sync.sh` and replace all placeholders (like `<your-backup-server-ip-or-hostname>`, `<your-ssh-port>`, `<path-to-your-ssh-private-key>`, Pushover keys, etc.) in the Configuration section with your actual values. Review default paths and exclusions.
-3.  **Set Up SSH Keys:** Ensure passwordless SSH key authentication is working from your primary server to the backup server using the specified user and key.
-4.  **Set Permissions:** Make the script executable: `chmod +x /path/to/your/mailcow-sync.sh`.
-
-**➡️ For detailed installation steps, configuration guidance, and SSH key setup instructions, please refer to the [full blog post](https://hostbor.com/mailcow-servers-in-sync/).**
-
-## Basic Usage
-
-### Manual Execution
-
-Run the script manually (usually as root or with `sudo`):
-
-```bash
-sudo /path/to/your/mailcow-sync.sh
-```
-
-Check the log file (`/var/log/sync_mailcow.log` by default) for progress and errors.
-
-### Automated Execution (Cron)
-
-Set up a cron job (`sudo crontab -e`) to run the script automatically on your desired schedule (e.g., daily, twice daily).
-
-➡️ See the full blog post for detailed cron job examples and scheduling recommendations.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details
+> **No DNS changes are required during failover.**
+>
+> Because MailChannels handles all mail delivery routing (inbound via MX/routing rules, outbound via relay), switching from the primary Mailcow server to the standby server only requires the Mailcow instance itself to be active — not a DNS update to MX or A records. Mail will continue to flow through MailChannels regardless of which Mailcow backend is active.
+>
+> **Failover steps in our environment:**
+> 1. Confirm the primary Mailcow server is down or being taken offline.
+> 2. 2. The standby server (already synced and running Mailcow containers) is immediately ready.
+>    3. 3. Update internal routing or load balancer to point Mailcow traffic to the standby IP — **no public DNS change needed**.
+>       4. 4. Notify the team via the configured Pushover alert channel.
+>         
+>          5. This significantly reduces recovery time compared to waiting for DNS propagation.
+>         
+>          6. ---
+>         
+>          7. ## Features
+>
+> * **Automated Server Mirroring:** Synchronizes the primary Mailcow server to a secondary server.
+> * * **Configuration Sync:** Mirrors the Mailcow configuration directory (default: `/opt/mailcow-dockerized`).
+>   * * **Data Volume Sync:** Mirrors essential Docker volumes (default: `/var/lib/docker/volumes`), ensuring mail data, databases, etc., are replicated.
+>     * * **"Zero-Prep" Backup Server:** Automatically installs Docker and the correct Docker Compose version on the backup server during the first run if they are not present (Tested on Ubuntu/Debian).
+>       * * **Efficient Transfers:** Uses `rsync` with optimized flags (`-aHhP --numeric-ids --delete`) to transfer only changed data and preserve permissions/ownership accurately.
+>         * * **Configurable Exclusions:** Allows specific Docker volumes (like `rspamd-vol-1` by default) to be excluded, useful for architecture differences or ignoring unrelated containers.
+>           * * **Robust Error Handling:** Implements `trap` to catch errors, logs detailed messages (including the failed command), and stops the script immediately upon failure.
+>             * * **Notifications:** Optional error notifications via Pushover (easily adaptable to Email or Telegram).
+>               * * **Automation Ready:** Designed to be run automatically via Cron for scheduled synchronization.
+>                
+>                 * ---
+>                
+>                 * ## Prerequisites
+>                
+>                 * * **Primary Server:** A running Mailcow installation. SSH access with a dedicated key pair. `rsync` installed.
+> * **Backup Server:** A fresh server (Ubuntu/Debian recommended) with SSH access configured for the primary server's key. The script handles Docker/Compose installation automatically.
+> * * **Network:** The primary server must be able to reach the backup server via SSH on the configured port.
+>  
+>   * ---
+>  
+>   * ## Setup
+>  
+>   * ### 1. Generate a Dedicated SSH Key (on Primary Server)
+>
+>   * ```bash
+>     ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519_mailcow -C "mailcow-sync"
+>     ssh-copy-id -i /root/.ssh/id_ed25519_mailcow.pub -p <SSH_PORT> root@<BACKUP_SERVER_IP>
+>     ```
+>
+> Test connectivity:
+>
+> ```bash
+> ssh -i /root/.ssh/id_ed25519_mailcow -p <SSH_PORT> root@<BACKUP_SERVER_IP> "echo Connection successful"
+> ```
+>
+> ### 2. Configure the Script
+>
+> Copy `mailcow-sync.sh` to your primary server (e.g., `/root/mailcow-sync.sh`) and edit the configuration section at the top:
+>
+> ```bash
+> TARGET_SERVER=""        # Backup server IP or hostname
+> TARGET_USER="root"
+> MAILCOW_DIR="/opt/mailcow-dockerized"
+> DOCKER_VOLUMES="/var/lib/docker/volumes"
+> EXCLUDES="--exclude rspamd-vol-1"
+> SSH_PORT=22             # Your SSH port
+> SSH_KEY="/root/.ssh/id_ed25519_mailcow"
+> PUSHOVER_API_KEY=""     # Optional
+> PUSHOVER_USER_KEY=""    # Optional
+> LOG_FILE="/var/log/sync_mailcow.log"
+> ```
+>
+> ### 3. Make Executable
+>
+> ```bash
+> chmod +x /root/mailcow-sync.sh
+> ```
+>
+> ### 4. Schedule via Cron
+>
+> Run twice daily (recommended):
+>
+> ```bash
+> 0 2,14 * * * /root/mailcow-sync.sh > /dev/null 2>&1
+> ```
+>
+> ---
+>
+> ## Firewall
+>
+> Allow SSH from the primary server only on the backup:
+>
+> ```bash
+> ufw allow from <PRIMARY_SERVER_IP> to any port <SSH_PORT> proto tcp
+> ```
+>
+> ---
+>
+> ## License
+>
+> MIT — see [LICENSE](LICENSE). Original script by [hostbor](https://github.com/hostbor/mailcowsync).
